@@ -3,22 +3,28 @@ import torch
 from utils import quaternion_to_rotation_matrix
 from sh import computeColorFromSH
 class GaussianModel(nn.Module):
-    def __init__(self):
+    def __init__(self, N):
+        """
+        N: number of gaussians
+        """
         super().__init__()
-        self.mean = nn.Parameter(torch.zeros(3))
-        self.scale = nn.Parameter(torch.ones(3))
-        self.rotation = nn.Parameter(torch.tensor([1.0, 0.0, 0.0, 0.0]))
-        self.opacity = nn.Parameter(torch.tensor(0.0))
-        self.sh_coeff = nn.Parameter(torch.rand(16,3))
+        self.mean = nn.Parameter(torch.zeros(N,3))
+        self.scale = nn.Parameter(torch.zeros(N,3)) # in log-space to ensure positivity
+        self.rotation = nn.Parameter(torch.tensor([1.0, 0.0, 0.0, 0.0]).unsqueeze(0).repeat(N,1)) # quaternions, initialized as identity rotation. shape: (N,4)
+        self.opacity = nn.Parameter(torch.zeros(N)) # will go through sigmoid to ensure [0,1] range
+        self.sh_coeff = nn.Parameter(torch.rand(N,16,3))
 
     def get_cov_world(self):
-        return quaternion_to_rotation_matrix(self.rotation)@torch.diag(self.scale**2)@quaternion_to_rotation_matrix(self.rotation).T
+        # (N,3,3) * (N,3,3) * (N,3,3) -> (N,3,3)
+        return quaternion_to_rotation_matrix(self.rotation)@torch.diag_embed(torch.exp(self.scale)**2)@quaternion_to_rotation_matrix(self.rotation).transpose(-1, -2)
     
     def get_mean_cam(self, w2c: torch.Tensor):
         R, t = w2c[:3, :3], w2c[:3, 3]
-        return R@self.mean + t
+        # (N,3) * (3,3) + (N,3) -> (N,3)
+        return self.mean@R.T + t
     
     def get_cov_cam(self, w2c: torch.Tensor):
+        # (3,3) * (N,3,3) * (3,3) -> (N,3,3)
         R = w2c[:3, :3]
         return R@self.get_cov_world()@R.T
     
@@ -28,8 +34,10 @@ class GaussianModel(nn.Module):
     
     def transform_to_2dframe(self, fx, fy, w2c: torch.Tensor):
         mean_3d_cam = self.get_mean_cam(w2c)
-        x, y, z = mean_3d_cam
+        x, y, z = mean_3d_cam[:,0], mean_3d_cam[:,1], mean_3d_cam[:,2] # (N,)
         cov_3d_cam = self.get_cov_cam(w2c)
-        J = torch.tensor([[fx/z, 0, -fx*x/z**2],[0, fy/z, -fy*y/z**2]]) #[2,3]
-        cov_2d = J @ cov_3d_cam @ J.T
-        return mean_3d_cam[:2], cov_2d
+        zeros = torch.zeros_like(x)
+        J = torch.stack([fx/z, zeros, -fx*x/z**2, zeros, fy/z, -fy*y/z**2], -1).reshape(-1,2,3) # [N,2,3]
+        # [N,2,3] * (N, 3, 3) * (N,3,2) -> (N,2,2)
+        cov_2d = J @ cov_3d_cam @ J.transpose(-1,-2)
+        return mean_3d_cam[:,:2], cov_2d
