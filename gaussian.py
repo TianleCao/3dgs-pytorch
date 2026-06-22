@@ -2,6 +2,7 @@ import torch.nn as nn
 import torch
 from utils import quaternion_to_rotation_matrix
 from sh import computeColorFromSH
+from dataset import Camera
 class GaussianModel(nn.Module):
     def __init__(self, N):
         """
@@ -32,7 +33,8 @@ class GaussianModel(nn.Module):
         cam_center_world = c2w[:3,3]
         return computeColorFromSH(3, self.mean, cam_center_world, self.sh_coeff)
     
-    def transform_to_2dframe(self, fx, fy, w2c: torch.Tensor):
+    def transform_to_2dframe(self, camera:Camera):
+        fx, fy, cx, cy, w2c = camera.fx, camera.fy, camera.cx, camera.cy, camera.w2c
         mean_3d_cam = self.get_mean_cam(w2c)
         x, y, z = mean_3d_cam[:,0], mean_3d_cam[:,1], mean_3d_cam[:,2] # (N,)
         cov_3d_cam = self.get_cov_cam(w2c)
@@ -40,4 +42,5 @@ class GaussianModel(nn.Module):
         J = torch.stack([fx/z, zeros, -fx*x/z**2, zeros, fy/z, -fy*y/z**2], -1).reshape(-1,2,3) # [N,2,3]
         # [N,2,3] * (N, 3, 3) * (N,3,2) -> (N,2,2)
         cov_2d = J @ cov_3d_cam @ J.transpose(-1,-2)
-        return mean_3d_cam[:,:2], cov_2d
+        mean_2d = torch.stack([fx*x/z + cx, fy*y/z + cy], -1) # (N,2)
+        return mean_2d, cov_2d
