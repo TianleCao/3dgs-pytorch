@@ -20,6 +20,10 @@ class Camera:
     width: int
     height: int
 
+    def to(self, device):
+        self.c2w = self.c2w.to(device)
+        self.w2c = self.w2c.to(device)
+        return self
 
 class BlenderDataset(Dataset):
     """NeRF-synthetic (Blender) dataset.
@@ -101,3 +105,8 @@ class BlenderDataset(Dataset):
             width=width,
             height=height,
         )
+    
+def compute_scene_extent(dataset:BlenderDataset):
+    centers = torch.tensor([f["transform_matrix"][i][3] for f in dataset.frames for i in range(3)], dtype=torch.float32).reshape(-1,3)
+    isocenter = centers.mean(0,keepdim=True)
+    return torch.linalg.norm(centers-isocenter,dim=-1).max().item() * 1.1
