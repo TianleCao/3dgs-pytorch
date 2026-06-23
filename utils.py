@@ -26,3 +26,6 @@ def quaternion_to_rotation_matrix(quat):
     ], dim=-2)
     
     return rot_matrix
+
+def inverse_sigmoid(x):
+    return torch.log(x.clamp(min=1e-7)/(1-x).clamp(min=1e-7))

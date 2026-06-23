@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torch
-from utils import quaternion_to_rotation_matrix
+from utils import quaternion_to_rotation_matrix, inverse_sigmoid
 from sh import computeColorFromSH
 from dataset import Camera
 class GaussianModel(nn.Module):
@@ -12,12 +12,24 @@ class GaussianModel(nn.Module):
         self.mean = nn.Parameter(torch.zeros(N,3))
         self.scale = nn.Parameter(torch.zeros(N,3)) # in log-space to ensure positivity
         self.rotation = nn.Parameter(torch.tensor([1.0, 0.0, 0.0, 0.0]).unsqueeze(0).repeat(N,1)) # quaternions, initialized as identity rotation. shape: (N,4)
-        self.opacity = nn.Parameter(torch.zeros(N)) # will go through sigmoid to ensure [0,1] range
+        self.opacity = nn.Parameter(inverse_sigmoid(torch.ones(N)*0.01)) # will go through sigmoid to ensure [0,1] range
         self.sh_coeff = nn.Parameter(torch.rand(N,16,3))
-
+    
+    @property
+    def get_scale(self):
+        return torch.exp(self.scale)
+    
+    @property
+    def get_opacity(self):
+        return torch.sigmoid(self.opacity)
+    
+    def get_cov_world_square_root(self):
+        # (N,3,3) * (N,3,3) -> (N,3,3)
+        return quaternion_to_rotation_matrix(self.rotation)@torch.diag_embed(self.get_scale)
+    
     def get_cov_world(self):
         # (N,3,3) * (N,3,3) * (N,3,3) -> (N,3,3)
-        return quaternion_to_rotation_matrix(self.rotation)@torch.diag_embed(torch.exp(self.scale)**2)@quaternion_to_rotation_matrix(self.rotation).transpose(-1, -2)
+        return quaternion_to_rotation_matrix(self.rotation)@torch.diag_embed(self.get_scale**2)@quaternion_to_rotation_matrix(self.rotation).transpose(-1, -2)
     
     def get_mean_cam(self, w2c: torch.Tensor):
         R, t = w2c[:3, :3], w2c[:3, 3]
