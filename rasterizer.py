@@ -7,7 +7,7 @@ class Rasterizer(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def render_single_gaussian(self, gaussian_center_2d:torch.Tensor, gaussian_cov_2d:torch.Tensor, opacity, color: torch.Tensor, pixel_locations: torch.Tensor, T: torch.tensor):
+    def render_single_gaussian(self, gaussian_center_2d: torch.Tensor, gaussian_cov_2d: torch.Tensor, opacity: float, color: torch.Tensor, pixel_locations: torch.Tensor, T: torch.tensor):
         """
         render a single gaussian
         Arugments:
@@ -23,30 +23,37 @@ class Rasterizer(nn.Module):
         xv, yv = center_dist[...,0], center_dist[...,1] # [H,W]
         power = -0.5/det*(c*xv**2 - 2*b*xv*yv + a*yv**2) # [H,W]
         power = torch.clamp(power, max=0) # numerical precision
-        alpha = torch.clamp(torch.exp(power)* torch.sigmoid(opacity), max=0.99) # [H,W], clamp alpha with 0.99, as in Appenedix C of  3DGS paper
+        alpha = torch.clamp(torch.exp(power)* opacity, max=0.99) # [H,W], clamp alpha with 0.99, as in Appenedix C of  3DGS paper
         alpha = alpha * (alpha>=1/255)  # filter out negligible contribution(<1/255), as in Appenedix C of  3DGS paper
         T_new = T*(1-alpha) # [H,W]
         color_new = color * alpha.unsqueeze(-1) * T.unsqueeze(-1) # [H,W,3]
         return color_new, T_new
     
     def forward(self, gaussians: GaussianModel, camera: Camera, bg_color: torch.Tensor):
+        device = gaussians.mean.device
         h, w = camera.height, camera.width
-        image = torch.zeros((h,w,3))
-        T = torch.ones((h,w)) # remaining transmittance, initially at 1
+        image = torch.zeros((h,w,3),device=device)
+        T = torch.ones((h,w),device=device) # remaining transmittance, initially at 1
 
         depth = gaussians.get_mean_cam(camera.w2c)[:,2] # [N]
         sort_ind = torch.argsort(depth)
 
-        xv, yv = torch.meshgrid(torch.arange(w), torch.arange(h), indexing = 'xy')
+        xv, yv = torch.meshgrid(torch.arange(w,device=device), torch.arange(h,device=device), indexing = 'xy')
         pixel_locations = torch.stack((xv,yv),-1)
-        gaussians_center_2d, gaussians_cov_2d = gaussians.transform_to_2dframe(camera.fx, camera.fy, camera.w2c) # (N,2), (N,2,2)
+        gaussians_center_2d, gaussians_cov_2d = gaussians.transform_to_2dframe(camera) # (N,2), (N,2,2)
+        # we need to keep the grad of nonleaf center (i.e. "view-space position gradients" in 5.2 of paper), to assess under-reconstruction and over-reconstruction
+        gaussians_center_2d.retain_grad()
+        self.last_means_2d = gaussians_center_2d # expose to training loop
         colors = gaussians.get_color(camera.c2w) # (N,3)
         for ind in sort_ind:
             if torch.max(T) < 1/255:
                 ## cheap global early stopping
                 break
-            color, T = self.render_single_gaussian(gaussians_center_2d[ind], gaussians_cov_2d[ind], gaussians.opacity[ind], colors[ind], pixel_locations, T)
+            color, T = self.render_single_gaussian(gaussians_center_2d[ind], gaussians_cov_2d[ind], gaussians.get_opacity[ind], colors[ind], pixel_locations, T)
             image += color
         image += T.unsqueeze(-1)*bg_color # fill in remaining transmittance with background color
         return torch.clip(image, min=0, max=1)
     
+    @property
+    def viewspace_position_grad(self):
+        return self.last_means_2d.grad
