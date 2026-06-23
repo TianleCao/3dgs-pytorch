@@ -66,7 +66,7 @@ def computeColorFromSH(deg, pos, campos, sh):
     result = SH_C0 * sh[:,0,:] # (N,3)
 
     if deg > 0:
-        x, y, z = dir[:,0], dir[:,1], dir[:,2]
+        x, y, z = dir[:,0:1], dir[:,1:2], dir[:,2:3] #(N,1) each
         result = result - SH_C1 * y * sh[:,1,:] + SH_C1 * z * sh[:,2,:] - SH_C1 * x * sh[:,3,:] 
 
         if deg > 1:
