@@ -40,19 +40,21 @@ class Rasterizer(nn.Module):
 
         xv, yv = torch.meshgrid(torch.arange(w,device=device), torch.arange(h,device=device), indexing = 'xy')
         pixel_locations = torch.stack((xv,yv),-1)
-        gaussians_center_2d, gaussians_cov_2d = gaussians.transform_to_2dframe(camera) # (N,2), (N,2,2)
+        gaussians_center_2d, gaussians_cov_2d, visible = gaussians.transform_to_2dframe(camera) # (N,2), (N,2,2)
         # we need to keep the grad of nonleaf center (i.e. "view-space position gradients" in 5.2 of paper), to assess under-reconstruction and over-reconstruction
         gaussians_center_2d.retain_grad()
         self.last_means_2d = gaussians_center_2d # expose to training loop
+        opacities = gaussians.get_opacity
         colors = gaussians.get_color(camera.c2w, active_sh_deg) # (N,3)
+        sort_ind = sort_ind[visible[sort_ind]]## skips gaussian too close to the detector frame
         for ind in sort_ind:
             if torch.max(T) < 1/255:
                 ## cheap global early stopping
                 break
-            color, T = self.render_single_gaussian(gaussians_center_2d[ind], gaussians_cov_2d[ind], gaussians.get_opacity[ind], colors[ind], pixel_locations, T)
+            color, T = self.render_single_gaussian(gaussians_center_2d[ind], gaussians_cov_2d[ind], opacities[ind], colors[ind], pixel_locations, T)
             image += color
         image += T.unsqueeze(-1)*bg_color # fill in remaining transmittance with background color
-        return torch.clip(image, min=0, max=1)
+        return image
     
     @property
     def viewspace_position_grad(self):
