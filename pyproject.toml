@@ -11,6 +11,8 @@ dependencies = [
     "plyfile>=1.0",
     "imageio>=2.34",
     "matplotlib>=3.8",
+    "scipy>=1.11",
+    "torchmetrics>=1.0",
 ]
 
 [dependency-groups]

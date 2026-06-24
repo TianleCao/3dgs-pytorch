@@ -3,14 +3,20 @@ import torch
 from utils import quaternion_to_rotation_matrix, inverse_sigmoid
 from sh import computeColorFromSH
 from dataset import Camera
+from scipy.spatial import KDTree
+import numpy as np
 class GaussianModel(nn.Module):
     def __init__(self, N):
         """
         N: number of gaussians
         """
         super().__init__()
-        self.mean = nn.Parameter(torch.zeros(N,3))
-        self.scale = nn.Parameter(torch.zeros(N,3)) # in log-space to ensure positivity
+        means = np.random.random((N,3))* 2.6 - 1.3 # from readNerfSyntheticInfo() of reference repo (dataset_readers.py)
+        tree = KDTree(means)
+        dists, _ = tree.query(means, k=4)
+        mean_dist = dists[:,1:].mean(-1)
+        self.mean = nn.Parameter(torch.tensor(means, dtype=torch.float32))
+        self.scale = nn.Parameter(torch.tensor(np.log(mean_dist), dtype=torch.float32).unsqueeze(-1).repeat(1,3) ) # in log-space to ensure positivity
         self.rotation = nn.Parameter(torch.tensor([1.0, 0.0, 0.0, 0.0]).unsqueeze(0).repeat(N,1)) # quaternions, initialized as identity rotation. shape: (N,4)
         self.opacity = nn.Parameter(inverse_sigmoid(torch.ones(N)*0.01)) # will go through sigmoid to ensure [0,1] range
         self.sh_coeff = nn.Parameter(torch.zeros(N,16,3))
