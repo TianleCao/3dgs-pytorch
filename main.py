@@ -9,7 +9,7 @@ from control import adaptive_control, reset_opacity
 from tqdm import trange
 
 lambda_dssim = 0.2 # D-SSIM loss scaling
-N_gaussians = 100000
+N_gaussians = 100_000
 densification_interval = 100
 opacity_reset_interval = 3000
 densify_from_iter = 500
@@ -32,6 +32,10 @@ def collate_fn(batch):
     assert len(imgs) == 1, "only batch size = 1 is supported"
     return torch.stack(imgs,0), cams[0]
  
+def get_position_lr(step:int):
+    t = step / position_lr_max_steps
+    return position_lr_init * (position_lr_final/position_lr_init)**t
+
 def cycle(dataloader:DataLoader):
     while True:
         for data in dataloader:
@@ -62,10 +66,13 @@ if __name__ == '__main__':
     grad_accum = torch.zeros(N_gaussians, device=device)
     grad_denom = torch.zeros(N_gaussians, device=device)
     bg_color = torch.tensor([1.0,1.0,1.0], device=device)
-    for step in trange(30000): # 30K iters
+    for step in trange(position_lr_max_steps):
         img, cam = next(data_iter)
         img = img.to(device)
         cam = cam.to(device)
+        for param_group in optimizer.param_groups:
+            if param_group['name'] == 'mean':
+                param_group['lr'] = get_position_lr(step)
         loss = train_step(rasterizer, gaussians, img, cam, optimizer, bg_color, lambda_dssim, min(3, step//1000), grad_accum, grad_denom)
         if step >= densify_from_iter and step < densify_until_iter and step % densification_interval == 0:
             grad_accum, grad_denom = adaptive_control(optimizer, gaussians, grad_accum, grad_denom, 
