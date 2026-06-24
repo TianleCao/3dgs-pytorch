@@ -55,7 +55,7 @@ if __name__ == '__main__':
     
     rasterizer = Rasterizer()
 
-    optimizer = optim.Adam([{'name': 'mean','params': [gaussians.mean], 'lr':position_lr_init}, 
+    optimizer = optim.Adam([{'name': 'mean','params': [gaussians.mean], 'lr':position_lr_init*scene_extent}, 
                             {'name': 'scale','params': [gaussians.scale], 'lr':scaling_lr},
                             {'name': 'rotation','params': [gaussians.rotation], 'lr': rotation_lr},
                             {'name': 'opacity','params': [gaussians.opacity], 'lr': opacity_lr},
@@ -72,10 +72,10 @@ if __name__ == '__main__':
         cam = cam.to(device)
         for param_group in optimizer.param_groups:
             if param_group['name'] == 'mean':
-                param_group['lr'] = get_position_lr(step)
+                param_group['lr'] = get_position_lr(step)*scene_extent
         loss = train_step(rasterizer, gaussians, img, cam, optimizer, bg_color, lambda_dssim, min(3, step//1000), grad_accum, grad_denom)
         if step >= densify_from_iter and step < densify_until_iter and step % densification_interval == 0:
             grad_accum, grad_denom = adaptive_control(optimizer, gaussians, grad_accum, grad_denom, 
                      densify_grad_threshold, scene_extent, percent_dense, opacity_threshold)
-        if step >0 and step % opacity_reset_interval == 0:
+        if step >0 and step < densify_until_iter and step % opacity_reset_interval == 0:
             reset_opacity(gaussians, opacity_reset_value)
