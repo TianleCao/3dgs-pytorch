@@ -13,7 +13,7 @@ class GaussianModel(nn.Module):
         self.scale = nn.Parameter(torch.zeros(N,3)) # in log-space to ensure positivity
         self.rotation = nn.Parameter(torch.tensor([1.0, 0.0, 0.0, 0.0]).unsqueeze(0).repeat(N,1)) # quaternions, initialized as identity rotation. shape: (N,4)
         self.opacity = nn.Parameter(inverse_sigmoid(torch.ones(N)*0.01)) # will go through sigmoid to ensure [0,1] range
-        self.sh_coeff = nn.Parameter(torch.rand(N,16,3))
+        self.sh_coeff = nn.Parameter(torch.zeros(N,16,3))
     
     @property
     def get_scale(self):
