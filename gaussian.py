@@ -55,10 +55,12 @@ class GaussianModel(nn.Module):
         fx, fy, cx, cy, w2c = camera.fx, camera.fy, camera.cx, camera.cy, camera.w2c
         mean_3d_cam = self.get_mean_cam(w2c)
         x, y, z = mean_3d_cam[:,0], mean_3d_cam[:,1], mean_3d_cam[:,2] # (N,)
+        visible = z>=0.2 # relatively far away from plane, one can see similar filters inside reference repo - cuda_rasterizer/auxilliary.h
+        z_safe= torch.clamp(z, min=0.2)
         cov_3d_cam = self.get_cov_cam(w2c)
         zeros = torch.zeros_like(x)
-        J = torch.stack([fx/z, zeros, -fx*x/z**2, zeros, fy/z, -fy*y/z**2], -1).reshape(-1,2,3) # [N,2,3]
+        J = torch.stack([fx/z_safe, zeros, -fx*x/z_safe**2, zeros, fy/z_safe, -fy*y/z_safe**2], -1).reshape(-1,2,3) # [N,2,3]
         # [N,2,3] * (N, 3, 3) * (N,3,2) -> (N,2,2)
         cov_2d = J @ cov_3d_cam @ J.transpose(-1,-2)
-        mean_2d = torch.stack([fx*x/z + cx, fy*y/z + cy], -1) # (N,2)
-        return mean_2d, cov_2d
+        mean_2d = torch.stack([fx*x/z_safe + cx, fy*y/z_safe + cy], -1) # (N,2)
+        return mean_2d, cov_2d, visible
