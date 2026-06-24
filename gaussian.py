@@ -16,7 +16,7 @@ class GaussianModel(nn.Module):
         dists, _ = tree.query(means, k=4)
         mean_dist = dists[:,1:].mean(-1)
         self.mean = nn.Parameter(torch.tensor(means, dtype=torch.float32))
-        self.scale = nn.Parameter(torch.tensor(np.log(mean_dist), dtype=torch.float32).unsqueeze(-1).repeat(1,3) ) # in log-space to ensure positivity
+        self.scale = nn.Parameter(torch.tensor(2*np.log(mean_dist), dtype=torch.float32).unsqueeze(-1).repeat(1,3) ) # in log-space to ensure positivity
         self.rotation = nn.Parameter(torch.tensor([1.0, 0.0, 0.0, 0.0]).unsqueeze(0).repeat(N,1)) # quaternions, initialized as identity rotation. shape: (N,4)
         self.opacity = nn.Parameter(inverse_sigmoid(torch.ones(N)*0.01)) # will go through sigmoid to ensure [0,1] range
         self.sh_coeff = nn.Parameter(torch.zeros(N,16,3))
