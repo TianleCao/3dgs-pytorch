@@ -29,7 +29,7 @@ class Rasterizer(nn.Module):
         color_new = color * alpha.unsqueeze(-1) * T.unsqueeze(-1) # [H,W,3]
         return color_new, T_new
     
-    def forward(self, gaussians: GaussianModel, camera: Camera, bg_color: torch.Tensor):
+    def forward(self, gaussians: GaussianModel, camera: Camera, bg_color: torch.Tensor, active_sh_deg:int):
         device = gaussians.mean.device
         h, w = camera.height, camera.width
         image = torch.zeros((h,w,3),device=device)
@@ -44,7 +44,7 @@ class Rasterizer(nn.Module):
         # we need to keep the grad of nonleaf center (i.e. "view-space position gradients" in 5.2 of paper), to assess under-reconstruction and over-reconstruction
         gaussians_center_2d.retain_grad()
         self.last_means_2d = gaussians_center_2d # expose to training loop
-        colors = gaussians.get_color(camera.c2w) # (N,3)
+        colors = gaussians.get_color(camera.c2w, active_sh_deg) # (N,3)
         for ind in sort_ind:
             if torch.max(T) < 1/255:
                 ## cheap global early stopping

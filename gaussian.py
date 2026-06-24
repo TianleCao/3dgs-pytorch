@@ -41,9 +41,9 @@ class GaussianModel(nn.Module):
         R = w2c[:3, :3]
         return R@self.get_cov_world()@R.T
     
-    def get_color(self, c2w: torch.Tensor):
+    def get_color(self, c2w: torch.Tensor, active_sh_deg):
         cam_center_world = c2w[:3,3]
-        return computeColorFromSH(3, self.mean, cam_center_world, self.sh_coeff)
+        return computeColorFromSH(active_sh_deg, self.mean, cam_center_world, self.sh_coeff)
     
     def transform_to_2dframe(self, camera:Camera):
         fx, fy, cx, cy, w2c = camera.fx, camera.fy, camera.cx, camera.cy, camera.w2c

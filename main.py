@@ -8,7 +8,7 @@ from rasterizer import Rasterizer
 from control import adaptive_control, reset_opacity
 from tqdm import trange
 
-LAMBDA_DSSIM = 0.2 # D-SSIM loss scaling
+lambda_dssim = 0.2 # D-SSIM loss scaling
 N_gaussians = 100000
 densification_interval = 100
 opacity_reset_interval = 3000
@@ -61,12 +61,12 @@ if __name__ == '__main__':
     data_iter = cycle(train_dataloader)
     grad_accum = torch.zeros(N_gaussians, device=device)
     grad_denom = torch.zeros(N_gaussians, device=device)
-    BG_COLOR = torch.tensor([1.0,1.0,1.0], device=device)
+    bg_color = torch.tensor([1.0,1.0,1.0], device=device)
     for step in trange(30000): # 30K iters
         img, cam = next(data_iter)
         img = img.to(device)
         cam = cam.to(device)
-        loss = train_step(rasterizer, gaussians, img, cam, optimizer, BG_COLOR, LAMBDA_DSSIM, grad_accum, grad_denom)
+        loss = train_step(rasterizer, gaussians, img, cam, optimizer, bg_color, lambda_dssim, min(3, step//1000), grad_accum, grad_denom)
         if step >= densify_from_iter and step < densify_until_iter and step % densification_interval == 0:
             grad_accum, grad_denom = adaptive_control(optimizer, gaussians, grad_accum, grad_denom, 
                      densify_grad_threshold, scene_extent, percent_dense, opacity_threshold)

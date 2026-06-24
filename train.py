@@ -8,10 +8,10 @@ from dataset import Camera
 
 ssim = SSIM(data_range=1.0)
 
-def train_step(rasterizer: Rasterizer, gaussians: GaussianModel, img: torch.Tensor, cam: Camera, optimizer:Optimizer, bg_color:torch.Tensor, lambda_dssim: float, grad_accum: torch.Tensor, grad_denom: torch.Tensor):
+def train_step(rasterizer: Rasterizer, gaussians: GaussianModel, img: torch.Tensor, cam: Camera, optimizer:Optimizer, bg_color:torch.Tensor, lambda_dssim: float, active_sh_deg:int, grad_accum: torch.Tensor, grad_denom: torch.Tensor):
     
     optimizer.zero_grad()
-    rendered = rasterizer(gaussians, cam, bg_color) #(H,W,3)
+    rendered = rasterizer(gaussians, cam, bg_color, active_sh_deg) #(H,W,3)
     rendered_nchw = rendered.permute(2,0,1).unsqueeze(0) # (1,3,H,W)
     loss = F.l1_loss(img, rendered_nchw) + lambda_dssim * (1-ssim(img, rendered_nchw))
     loss.backward()
