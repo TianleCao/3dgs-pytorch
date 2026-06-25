@@ -10,7 +10,7 @@ def reset_opacity(gaussians: GaussianModel, opacity_reset_value:float):
 
 @torch.no_grad()
 def adaptive_control(optimizer: torch.optim.Optimizer, gaussians: GaussianModel, grad_accum: torch.Tensor, grad_denom: torch.Tensor, 
-                     densify_grad_threshold: float, scene_extent: float, percent_dense: float, opacity_threshold: float):
+                     densify_grad_threshold: float, scene_extent: float, percent_dense: float, opacity_threshold: float, prune_big_scale:bool):
     grad = grad_accum / grad_denom
     grad[grad.isnan()] = 0
     candidates = grad>densify_grad_threshold
@@ -21,7 +21,11 @@ def adaptive_control(optimizer: torch.optim.Optimizer, gaussians: GaussianModel,
     clone_tensors = clone_gaussian(gaussians, clone_mask)
     split_tensors = split_gaussian(gaussians, split_mask)
     cat_tensors_to_optimizer(optimizer, gaussians, merge(clone_tensors, split_tensors))
-    keep_mask = (~split_mask) & (opacity_values>=opacity_threshold) & (scales<scene_extent*0.1) 
+    if prune_big_scale:
+        # match trainging() function of reference repo, where we only prune based on scale after we perform opacity reset at least once
+        keep_mask = (~split_mask) & (opacity_values>=opacity_threshold) & (scales<scene_extent*0.1)
+    else:
+        keep_mask = (~split_mask) & (opacity_values>=opacity_threshold)
     N_new = clone_mask.sum() + split_mask.sum()*2
     keep_mask = torch.cat([keep_mask, torch.ones(N_new, dtype=bool, device=split_mask.device)],0)
     prune_gaussian(optimizer, gaussians, keep_mask)
