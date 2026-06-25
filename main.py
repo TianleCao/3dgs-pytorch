@@ -1,6 +1,7 @@
 import torch
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
+from torchmetrics import StructuralSimilarityIndexMeasure
 from dataset import BlenderDataset, compute_scene_extent
 from gaussian import GaussianModel
 from torch.utils.data import DataLoader
@@ -59,6 +60,7 @@ if __name__ == '__main__':
     gaussians = GaussianModel(N_gaussians).to(device) # 100K gaussians
     
     rasterizer = Rasterizer()
+    ssim = StructuralSimilarityIndexMeasure(data_range=1.0).to(device)
 
     optimizer = optim.Adam([{'name': 'mean','params': [gaussians.mean], 'lr':position_lr_init*scene_extent}, 
                             {'name': 'scale','params': [gaussians.scale], 'lr':scaling_lr},
@@ -72,7 +74,8 @@ if __name__ == '__main__':
     grad_accum = torch.zeros(N_gaussians, device=device)
     grad_denom = torch.zeros(N_gaussians, device=device)
     bg_color = torch.tensor([1.0,1.0,1.0], device=device)
-    for step in trange(position_lr_max_steps):
+    pbar = trange(position_lr_max_steps)
+    for step in pbar:
         img, cam = next(data_iter)
         img = img.to(device)
         cam = cam.to(device)
@@ -80,7 +83,8 @@ if __name__ == '__main__':
             if param_group['name'] == 'mean':
                 param_group['lr'] = get_position_lr(step)*scene_extent
         active_sh_deg = min(3, step//1000)
-        loss = train_step(rasterizer, gaussians, img, cam, optimizer, bg_color, lambda_dssim, active_sh_deg, grad_accum, grad_denom)
+        loss = train_step(rasterizer, gaussians, img, cam, optimizer, bg_color, lambda_dssim, active_sh_deg, grad_accum, grad_denom, ssim)
+        pbar.set_postfix(loss=f"{loss:.4f}", N=gaussians.mean.shape[0])
 
         writer.add_scalar("train/loss", loss, step)
         writer.add_scalar("train/num_gaussians", gaussians.mean.shape[0], step)

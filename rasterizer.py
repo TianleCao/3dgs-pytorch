@@ -39,7 +39,8 @@ class Rasterizer(nn.Module):
         xv, yv = torch.meshgrid(torch.arange(w,device=device), torch.arange(h,device=device), indexing = 'xy')
         gaussians_center_2d, gaussians_cov_2d, visible = gaussians.transform_to_2dframe(camera) # (N,2), (N,2,2)
         # we need to keep the grad of nonleaf center (i.e. "view-space position gradients" in 5.2 of paper), to assess under-reconstruction and over-reconstruction
-        gaussians_center_2d.retain_grad()
+        if gaussians_center_2d.requires_grad:
+            gaussians_center_2d.retain_grad()
         self.last_means_2d = gaussians_center_2d # expose to training loop
         sort_ind = sort_ind[visible[sort_ind]]## skips gaussian too close to the detector frame
 
