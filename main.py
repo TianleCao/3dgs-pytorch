@@ -10,6 +10,7 @@ from rasterizer import Rasterizer
 from control import adaptive_control, reset_opacity
 from evaluate import evaluate
 from tqdm import trange
+import os
 
 lambda_dssim = 0.2 # D-SSIM loss scaling
 N_gaussians = 100_000
@@ -31,6 +32,7 @@ scaling_lr = 0.005
 rotation_lr = 0.001
 eval_interval = 2000     # steps between val evals
 eval_max_frames = 10     # subsample val during training; full eval at end
+sh_schedule_interval = 1000 # introduce new DoF every schedule interval
 log_dir = "runs/lego"
 
 def collate_fn(batch):
@@ -82,7 +84,7 @@ if __name__ == '__main__':
         for param_group in optimizer.param_groups:
             if param_group['name'] == 'mean':
                 param_group['lr'] = get_position_lr(step)*scene_extent
-        active_sh_deg = min(3, step//1000)
+        active_sh_deg = min(3, step//sh_schedule_interval)
         loss = train_step(rasterizer, gaussians, img, cam, optimizer, bg_color, lambda_dssim, active_sh_deg, grad_accum, grad_denom, ssim)
         pbar.set_postfix(loss=f"{loss:.4f}", N=gaussians.mean.shape[0])
 
@@ -93,7 +95,7 @@ if __name__ == '__main__':
 
         if step >= densify_from_iter and step < densify_until_iter and step % densification_interval == 0:
             grad_accum, grad_denom = adaptive_control(optimizer, gaussians, grad_accum, grad_denom,
-                     densify_grad_threshold, scene_extent, percent_dense, opacity_threshold)
+                     densify_grad_threshold, scene_extent, percent_dense, opacity_threshold, step>=opacity_reset_interval)
         if step >0 and step < densify_until_iter and step % opacity_reset_interval == 0:
             reset_opacity(gaussians, opacity_reset_value)
 
@@ -112,3 +114,12 @@ if __name__ == '__main__':
     writer.add_scalar("test/ssim", test_metrics["ssim"], position_lr_max_steps)
     print(f"\nTest: PSNR={test_metrics['psnr']:.2f}  SSIM={test_metrics['ssim']:.4f}  (n={test_metrics['n']})")
     writer.close()
+
+    # Save final Gaussian state 
+    os.makedirs("checkpoints", exist_ok=True)
+    torch.save({
+        "gaussian_state": gaussians.state_dict(),
+        "N": gaussians.mean.shape[0],
+        "downscale": train_dataset.downscale,
+    }, "checkpoints/final.pt")
+    print(f"Saved checkpoint with N={gaussians.mean.shape[0]} Gaussians.")
