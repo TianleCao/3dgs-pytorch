@@ -6,9 +6,44 @@ from gaussian import GaussianModel
 
 
 class Rasterizer(nn.Module):
-    def __init__(self, chunk_size: int = 200):
+    # Empirically each Gaussian in a chunk holds ~20 (H, W) float32 tensors alive
+    # during forward+backward of one checkpointed chunk (alpha, T_before, T_after,
+    # weight, contrib, x_dist, y_dist, power, plus autograd duplicates).
+    _BYTES_PER_GAUSSIAN_PIXEL = 20 * 4
+
+    def __init__(self, chunk_size: int | None = None, memory_fraction: float = 0.5,
+                 min_chunk: int = 50, max_chunk: int = 5000):
+        """
+        chunk_size: explicit chunk size, or None to auto-size from free VRAM on first call.
+        memory_fraction: fraction of free GPU memory to budget for one chunk.
+        min_chunk / max_chunk: clamp the auto-sized chunk to a sane range.
+        """
         super().__init__()
-        self.chunk_size = chunk_size
+        self._explicit_chunk_size = chunk_size
+        self.memory_fraction = memory_fraction
+        self.min_chunk = min_chunk
+        self.max_chunk = max_chunk
+        self._auto_chunk_size: int | None = None
+
+    def _resolve_chunk_size(self, h: int, w: int, device: torch.device) -> int:
+        if self._explicit_chunk_size is not None:
+            return self._explicit_chunk_size
+        if self._auto_chunk_size is not None:
+            return self._auto_chunk_size
+
+        bytes_per_gaussian = self._BYTES_PER_GAUSSIAN_PIXEL * h * w
+        if device.type == "cuda":
+            free_bytes, _ = torch.cuda.mem_get_info(device)
+            budget = int(free_bytes * self.memory_fraction)
+        else:
+            budget = 2 * 1024**3  # 2 GB on CPU
+        K = max(self.min_chunk, min(self.max_chunk, budget // bytes_per_gaussian))
+        self._auto_chunk_size = K
+        print(f"[Rasterizer] auto chunk_size = {K} for {h}x{w} "
+              f"(budget {budget/1e9:.2f} GB, free {free_bytes/1e9:.2f} GB)"
+              if device.type == "cuda" else
+              f"[Rasterizer] auto chunk_size = {K} for {h}x{w} (CPU)")
+        return K
 
     def _render_chunk(self, means_2d, cov_2d, opacities, colors, xv, yv, T_global, h, w):
         """Vectorized rendering of one chunk of Gaussians, composited onto T_global."""
@@ -71,13 +106,14 @@ class Rasterizer(nn.Module):
 
         n_visible = sort_ind.shape[0]
         use_checkpoint = self.training and means_2d.requires_grad
+        chunk_size = self._resolve_chunk_size(h, w, device)
 
-        for k in range(0, n_visible, self.chunk_size):
+        for k in range(0, n_visible, chunk_size):
             args = (
-                means_2d_s[k:k+self.chunk_size],
-                cov_2d_s[k:k+self.chunk_size],
-                opacities_s[k:k+self.chunk_size],
-                colors_s[k:k+self.chunk_size],
+                means_2d_s[k:k+chunk_size],
+                cov_2d_s[k:k+chunk_size],
+                opacities_s[k:k+chunk_size],
+                colors_s[k:k+chunk_size],
                 xv, yv, T_global, h, w,
             )
             if use_checkpoint:
