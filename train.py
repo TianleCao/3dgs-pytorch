@@ -14,7 +14,9 @@ def train_step(rasterizer: Rasterizer, gaussians: GaussianModel, img: torch.Tens
     optimizer.zero_grad()
     rendered = rasterizer(gaussians, cam, bg_color, active_sh_deg) #(H,W,3)
     rendered_nchw = rendered.permute(2,0,1).unsqueeze(0) # (1,3,H,W)
-    loss = F.l1_loss(img, rendered_nchw) + lambda_dssim * (1-ssim(img, rendered_nchw))
+    loss = F.l1_loss(img, rendered_nchw)
+    if lambda_dssim > 0:
+        loss = loss + lambda_dssim * (1 - ssim(img, rendered_nchw))
     loss.backward()
     viewspace_grad_norm = rasterizer.viewspace_position_grad.norm(dim=-1)
     grad_accum += viewspace_grad_norm # (N,)
