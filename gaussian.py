@@ -18,8 +18,10 @@ class GaussianModel(nn.Module):
         self.mean = nn.Parameter(torch.tensor(means, dtype=torch.float32))
         self.scale = nn.Parameter(torch.tensor(np.log(mean_dist), dtype=torch.float32).unsqueeze(-1).repeat(1,3) ) # in log-space to ensure positivity
         self.rotation = nn.Parameter(torch.tensor([1.0, 0.0, 0.0, 0.0]).unsqueeze(0).repeat(N,1)) # quaternions, initialized as identity rotation. shape: (N,4)
-        self.opacity = nn.Parameter(inverse_sigmoid(torch.ones(N)*0.01)) # will go through sigmoid to ensure [0,1] range
-        self.sh_coeff = nn.Parameter(torch.zeros(N,16,3))
+        self.opacity = nn.Parameter(inverse_sigmoid(torch.ones(N)*0.1)) # will go through sigmoid to ensure [0,1] range; based on create_from_pcd() of reference repo
+        sh = np.zeros((N,16,3))
+        sh[:,0,:] = np.random.random((N,3))/255.0 # match readNerfSyntheticInfo() function in reference repo, although this is almost the same all zeros init
+        self.sh_coeff = nn.Parameter(torch.tensor(sh, dtype=torch.float32))
     
     @property
     def get_scale(self):
