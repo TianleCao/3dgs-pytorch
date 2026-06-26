@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch.optim import Optimizer
-from torchmetrics import StructuralSimilarityIndexMeasure
+from torchmetrics.image import StructuralSimilarityIndexMeasure
 from rasterizer import Rasterizer
 from gaussian import GaussianModel
 from dataset import Camera

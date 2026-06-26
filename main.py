@@ -1,7 +1,7 @@
 import torch
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
-from torchmetrics import StructuralSimilarityIndexMeasure
+from torchmetrics.image import StructuralSimilarityIndexMeasure
 from dataset import BlenderDataset, compute_scene_extent
 from gaussian import GaussianModel
 from torch.utils.data import DataLoader

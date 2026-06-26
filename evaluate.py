@@ -1,6 +1,6 @@
 import torch
 from torch.utils.data import DataLoader
-from torchmetrics import StructuralSimilarityIndexMeasure as SSIM
+from torchmetrics.image import StructuralSimilarityIndexMeasure as SSIM
 from rasterizer import Rasterizer
 from gaussian import GaussianModel
 
