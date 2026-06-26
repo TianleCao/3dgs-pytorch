@@ -27,13 +27,27 @@ if [ -d "$LEGO_DIR" ] && [ -n "$(ls -A "$LEGO_DIR" 2>/dev/null)" ]; then
     exit 0
 fi
 
+# uv installs to $HOME/.local/bin by default, which may not be on PATH yet
+# in a fresh shell (e.g. when this script runs right after `uv` install).
+if ! command -v uvx >/dev/null 2>&1 && [ -x "$HOME/.local/bin/uvx" ]; then
+    export PATH="$HOME/.local/bin:$PATH"
+fi
 if ! command -v uvx >/dev/null 2>&1; then
     echo "ERROR: 'uvx' not found. Install uv first: https://docs.astral.sh/uv/" >&2
     exit 1
 fi
+# unzip is missing on many minimal Docker images (incl. some RunPod templates).
+# Auto-install if we're root on a Debian/Ubuntu system; otherwise fail clearly.
 if ! command -v unzip >/dev/null 2>&1; then
-    echo "ERROR: 'unzip' not found. Install with: apt-get install -y unzip  (or brew install unzip)" >&2
-    exit 1
+    if [ "$(id -u)" = "0" ] && command -v apt-get >/dev/null 2>&1; then
+        echo "==> 'unzip' missing, installing via apt-get"
+        apt-get update -qq
+        apt-get install -y -qq unzip
+    else
+        echo "ERROR: 'unzip' not found and can't auto-install (need root + apt-get)." >&2
+        echo "       Install manually: apt-get install -y unzip  (or brew install unzip)" >&2
+        exit 1
+    fi
 fi
 
 mkdir -p "$DATA_DIR"
