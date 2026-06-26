@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
-from gaussian import GaussianModel
-from utils import inverse_sigmoid
+from .gaussian import GaussianModel
+from .utils import inverse_sigmoid
 import math
 
 @torch.no_grad()

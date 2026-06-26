@@ -2,9 +2,9 @@ import torch
 import torch.nn.functional as F
 from torch.optim import Optimizer
 from torchmetrics.image import StructuralSimilarityIndexMeasure
-from rasterizer import Rasterizer
-from gaussian import GaussianModel
-from dataset import Camera
+from .rasterizer import Rasterizer
+from .gaussian import GaussianModel
+from .dataset import Camera
 
 
 def train_step(rasterizer: Rasterizer, gaussians: GaussianModel, img: torch.Tensor, cam: Camera,

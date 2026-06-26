@@ -12,9 +12,9 @@ import argparse
 import matplotlib
 import torch
 
-from gaussian import GaussianModel
-from rasterizer import Rasterizer
-from dataset import BlenderDataset
+from gs.gaussian import GaussianModel
+from gs.rasterizer import Rasterizer
+from gs.dataset import BlenderDataset
 
 
 def render_gallery(checkpoint_path: str, data_dir: str, output_path: str,

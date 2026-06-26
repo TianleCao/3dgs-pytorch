@@ -1,8 +1,8 @@
 import torch.nn as nn
 import torch
-from utils import quaternion_to_rotation_matrix, inverse_sigmoid
-from sh import computeColorFromSH
-from dataset import Camera
+from .utils import quaternion_to_rotation_matrix, inverse_sigmoid
+from .sh import computeColorFromSH
+from .dataset import Camera
 from scipy.spatial import KDTree
 import numpy as np
 

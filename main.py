@@ -2,13 +2,13 @@ import torch
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 from torchmetrics.image import StructuralSimilarityIndexMeasure
-from dataset import BlenderDataset, compute_scene_extent
-from gaussian import GaussianModel
 from torch.utils.data import DataLoader
-from train import train_step
-from rasterizer import Rasterizer
-from control import adaptive_control, reset_opacity
-from evaluate import evaluate
+from gs.dataset import BlenderDataset, compute_scene_extent
+from gs.gaussian import GaussianModel
+from gs.train import train_step
+from gs.rasterizer import Rasterizer
+from gs.control import adaptive_control, reset_opacity
+from gs.evaluate import evaluate
 from tqdm import trange
 import os
 

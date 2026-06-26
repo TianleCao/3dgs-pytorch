@@ -1,8 +1,8 @@
-from dataset import Camera
 import torch
 import torch.nn as nn
 from torch.utils.checkpoint import checkpoint
-from gaussian import GaussianModel
+from .dataset import Camera
+from .gaussian import GaussianModel
 
 
 class Rasterizer(nn.Module):
