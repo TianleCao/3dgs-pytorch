@@ -11,7 +11,7 @@ class Rasterizer(nn.Module):
     # weight, contrib, x_dist, y_dist, power, plus autograd duplicates).
     _BYTES_PER_GAUSSIAN_PIXEL = 20 * 4
 
-    def __init__(self, chunk_size: int | None = None, memory_fraction: float = 0.5,
+    def __init__(self, chunk_size: int | None = None, memory_fraction: float = 0.75,
                  min_chunk: int = 50, max_chunk: int = 5000):
         """
         chunk_size: explicit chunk size, or None to auto-size from free VRAM on first call.
