@@ -78,7 +78,7 @@ class Rasterizer(nn.Module):
 
         depth = gaussians.get_mean_cam(camera.w2c)[:, 2] # (N,)
         sort_ind = torch.argsort(depth)
-        means_2d, cov_2d, visible = gaussians.transform_to_2dframe(camera) # (N,2), (N,2,2), (N,)
+        means_2d, cov_2d, visible, opacity_scale = gaussians.transform_to_2dframe(camera) # (N,2), (N,2,2), (N,)
 
         # retain_grad on the FULL means_2d so adaptive control can read it.
         # gradients from each chunk's slice flow back here through autograd.
@@ -95,6 +95,7 @@ class Rasterizer(nn.Module):
         means_2d_s  = means_2d[sort_ind]
         cov_2d_s    = cov_2d[sort_ind]
         opacities_s = opacities[sort_ind]
+        opacity_scale_s = opacity_scale[sort_ind]
         colors_s    = colors[sort_ind]
 
         xv, yv = torch.meshgrid(
@@ -112,7 +113,7 @@ class Rasterizer(nn.Module):
             args = (
                 means_2d_s[k:k+chunk_size],
                 cov_2d_s[k:k+chunk_size],
-                opacities_s[k:k+chunk_size],
+                opacities_s[k:k+chunk_size]*opacity_scale_s[k:k+chunk_size],
                 colors_s[k:k+chunk_size],
                 xv, yv, T_global, h, w,
             )

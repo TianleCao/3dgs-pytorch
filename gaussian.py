@@ -5,6 +5,7 @@ from sh import computeColorFromSH
 from dataset import Camera
 from scipy.spatial import KDTree
 import numpy as np
+
 class GaussianModel(nn.Module):
     def __init__(self, N):
         """
@@ -64,5 +65,10 @@ class GaussianModel(nn.Module):
         J = torch.stack([fx/z_safe, zeros, -fx*x/z_safe**2, zeros, fy/z_safe, -fy*y/z_safe**2], -1).reshape(-1,2,3) # [N,2,3]
         # [N,2,3] * (N, 3, 3) * (N,3,2) -> (N,2,2)
         cov_2d = J @ cov_3d_cam @ J.transpose(-1,-2)
+        h_var = 0.3 # this is the EWA splatting low-pass filter, also seen in preprocessCUDA() function inside reference repo - cuda_rasterizer/forward.cu
+        det_before = cov_2d[:,0,0] * cov_2d[:,1,1] - cov_2d[:,0,1]**2
+        det_after = (cov_2d[:,0,0] + h_var) * (cov_2d[:,1,1] + h_var) - cov_2d[:,0,1]**2
+        cov_2d_filtered = cov_2d + h_var* torch.eye(2, device = cov_2d.device, dtype=cov_2d.dtype)
+        opacity_scale = torch.sqrt(torch.clamp(det_before/det_after, min=0.000025)) # anti-aliasing. Also taken from preprocessCUDA() function, for numerical stability
         mean_2d = torch.stack([fx*x/z_safe + cx, fy*y/z_safe + cy], -1) # (N,2)
-        return mean_2d, cov_2d, visible
+        return mean_2d, cov_2d_filtered, visible, opacity_scale
