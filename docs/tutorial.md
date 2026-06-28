@@ -214,13 +214,17 @@ The same dance — but with boolean masking instead of concatenation — is need
 There are other places that I had considered straight-forward but found it to be worth mentioning as I compared my implementation to the reference repo.
 ### 3.1 different learnable parameters have different learning rates
 
-One can find the learning rate details for each parameter group inside `main.py`
+One can find the learning rate details for each parameter group inside any `.yml` file under `configs` folder
 
-### 3.2 The opacity reset does not always happen 
+### 3.2 Position learning rate is scaled by scene extent
+
+The paper gives a position learning rate of $1.6 \times 10^{-4}$, but the reference actually uses `position_lr_init × spatial_lr_scale`, where `spatial_lr_scale` is the scene extent (around $4$ for `lego`). 
+
+### 3.3 The opacity reset does not always happen 
 
 Indeed this only happens **during the densification phase** (`step < densify_until_iter`). After densification ends, you've committed to your final Gaussian population and want the optimizer to refine opacities rather than reset them. The reference also adds a special trigger for **white-background scenes** (which I didn't implement): an additional opacity reset at `densify_from_iter`, which gives the initially-gray Gaussians a fresh shot at finding good opacities before serious densification starts.
 
-### 3.3 EWA splatting smoothing
+### 3.4 EWA splatting smoothing
 
 This may be more tied to the original EWA splatting paper. Simply put, we add a small constant to the diagonal of the 2D covariance:
 
@@ -234,7 +238,7 @@ $$o_{\text{effective}} = o \cdot \sqrt{\frac{\det(\Sigma_{2D})}{\det(\Sigma_{2D}
 
 When the original Gaussian is much larger than the filter, the ratio is $\approx 1$ and opacity is unchanged. When the original is sub-pixel, the ratio is small and opacity is heavily attenuated — so the dilated splat is faint, which is exactly what an aliased reconstruction should look like.
 
-### 3.4 numerical stability considerations
+### 3.5 numerical stability considerations
 
 This is indeed well described in the paper's Appendix C. Three things to clamp on the rendering side:
 
@@ -243,10 +247,6 @@ This is indeed well described in the paper's Appendix C. Three things to clamp o
 3. **The Mahalanobis exponent is clamped at $\le 0$** (max). Floating-point error in the inverse covariance can occasionally produce a slightly negative quadratic form, which would give $\exp(\text{positive}) > 1$ — alpha greater than the opacity, breaking the $[0,1]$ invariant.
 
 There is also a **near-plane** cutoff in `transform_to_2dframe`: Gaussians with $z_c < 0.2$ are excluded, and $z$ is clamped before being fed into the Jacobian. Without this, Gaussians that drift behind the camera produce $1/z_c$ terms that blow up and generate NaNs that poison gradients silently.
-
-### 3.5 Position learning rate is scaled by scene extent
-
-The paper gives a position learning rate of $1.6 \times 10^{-4}$, but the reference actually uses `position_lr_init × spatial_lr_scale`, where `spatial_lr_scale` is the scene extent (around $4$ for `lego`). 
 
 ### 3.6 White-background compositing
 
