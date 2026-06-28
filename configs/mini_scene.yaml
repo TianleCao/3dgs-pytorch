@@ -1,0 +1,39 @@
+# Colab T4 / quick-exploration setup: 200x200, ~1k steps.
+# Shorter schedule and looser thresholds let densification keep up with the
+# random-init mortality in only ~8 cycles. Produces recognizable but soft renders.
+
+# data
+data_dir: data/lego
+downscale: 4                  # 200x200
+
+# model
+N_gaussians: 15_000
+
+# training
+position_lr_init: 0.00016
+position_lr_final: 0.0000016
+position_lr_delay_mult: 0.01
+position_lr_max_steps: 2_000
+feature_lr: 0.0025
+opacity_lr: 0.025
+scaling_lr: 0.005
+rotation_lr: 0.001
+lambda_dssim: 0.2
+sh_schedule_interval: 200       # accelerated so all SH bands active by step ~600
+
+# densification — earlier, more aggressive, looser thresholds for a short run
+densification_interval: 100
+densify_from_iter: 100
+densify_until_iter: 1600
+densify_grad_threshold: 0.0002
+percent_dense: 0.01
+opacity_threshold: 0.005
+opacity_reset_interval: 600   
+opacity_reset_value: 0.01
+
+# evaluation
+eval_interval: 200
+eval_max_frames: 5
+
+# logging
+log_dir: runs/lego_mini

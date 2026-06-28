@@ -1,0 +1,37 @@
+# Aims to match the reference 3DGS repo's defaults for NeRF-synthetic.
+
+# data
+data_dir: data/lego
+downscale: 1                  # 800x800
+
+# model
+N_gaussians: 100_000
+
+# training
+position_lr_init: 0.00016
+position_lr_final: 0.0000016
+position_lr_delay_mult: 0.01
+position_lr_max_steps: 30_000
+feature_lr: 0.0025
+opacity_lr: 0.025
+scaling_lr: 0.005
+rotation_lr: 0.001
+lambda_dssim: 0.2
+sh_schedule_interval: 1000
+
+# densification
+densification_interval: 100
+densify_from_iter: 500
+densify_until_iter: 15_000
+densify_grad_threshold: 0.0002
+percent_dense: 0.01
+opacity_threshold: 0.005
+opacity_reset_interval: 3000
+opacity_reset_value: 0.01
+
+# evaluation
+eval_interval: 2000
+eval_max_frames: 10
+
+# logging
+log_dir: runs/lego_paper

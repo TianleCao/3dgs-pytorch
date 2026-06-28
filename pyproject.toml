@@ -21,6 +21,7 @@ dependencies = [
     "scipy>=1.11",
     "torchmetrics>=1.0",
     "tensorboard>=2.15",
+    "pyyaml>=6.0",
     "setuptools>=68,<81",  # tensorboard imports pkg_resources; setuptools>=82 removed it (81 deprecates with warning)
 ]
 
