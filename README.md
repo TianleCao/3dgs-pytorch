@@ -36,10 +36,9 @@ For a quick experiment with the repo, one could run a mini scene with this [Goog
 
 ## Setup
 
-Requires CUDA-capable GPU. [uv](https://docs.astral.sh/uv/) handles everything else.
+Requires CUDA-capable GPU and linux OS (Windows should work but the bash script needs modifications. So I recommend installing `wsl` to use the linux subsystem). [uv](https://docs.astral.sh/uv/) handles everything else.
 1. **Install `uv`**:
-   - **macOS/Linux:** `curl -LsSf https://astral.sh/uv/install.sh | sh`
-   - **Windows:** `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
+   `curl -LsSf https://astral.sh/uv/install.sh | sh`
 2. **Clone repo and sync**:
 ```bash
 git clone https://github.com/<you>/3dgs-pytorch.git
