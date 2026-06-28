@@ -44,9 +44,9 @@ Different from NeRF (ray based rendering), 3DGS uses point-based rendering. The 
 
 ### 1.1 Coordinate transform
 
-A 3D Gaussian is characterized by its mean $\boldsymbol{\mu}_w \in \mathbb{R}^3$ and covariance $\Sigma_w \in \mathbb{R}^{3 \times 3}$ in **world space**. To render it from a particular camera, we need to know where it lands in **camera space** — the coordinate frame where the camera sits at the origin and looks down its own axis.
+A 3D Gaussian is characterized by its mean $\boldsymbol{\mu}_w$ (a 3-vector) and covariance $\Sigma_w$ (a 3×3 matrix) in **world space**. To render it from a particular camera, we need to know where it lands in **camera space** — the coordinate frame where the camera sits at the origin and looks down its own axis.
 
-**The transform itself.** Let the camera-to-world transform (which is what the dataset typically stores) be a rigid motion $[R \mid t]$: rotate by $R$, then translate by $t$. The inverse — world-to-camera — is $[R^\top \mid -R^\top t]$, so a world point $\mathbf{x}_w$ becomes:
+**The transform itself.** Let the camera-to-world transform (which is what the dataset typically stores) be a rigid motion $[R \vert t]$: rotate by $R$, then translate by $t$. The inverse — world-to-camera — is $[R^\top \vert -R^\top t]$, so a world point $\mathbf{x}_w$ becomes:
 
 $$\mathbf{x}_c = R^\top \mathbf{x}_w + (-R^\top t) = R^\top(\mathbf{x}_w - t)$$
 
@@ -58,20 +58,26 @@ $$\mathbb{E}[\mathbf{x}_c] = R^\top \mathbb{E}[\mathbf{x}_w] + (-R^\top t) = R^\
 
 So $\boldsymbol{\mu}_c = R^\top(\boldsymbol{\mu}_w - t)$ — the mean transforms exactly like an ordinary point. The translation matters here.
 
-**How the covariance transforms.** From the definition $\mathrm{Cov}(\mathbf{y}) = \mathbb{E}\big[(\mathbf{y} - \mathbb{E}[\mathbf{y}])(\mathbf{y} - \mathbb{E}[\mathbf{y}])^\top\big]$. Apply it to $\mathbf{x}_c$:
+**How the covariance transforms.** Start from the definition:
+
+$$\mathrm{Cov}(\mathbf{y}) = \mathbb{E}[(\mathbf{y} - \mathbb{E}[\mathbf{y}])(\mathbf{y} - \mathbb{E}[\mathbf{y}])^\top]$$
+
+Apply it to $\mathbf{x}_c$:
 
 $$\mathbf{x}_c - \mathbb{E}[\mathbf{x}_c] = R^\top \mathbf{x}_w - R^\top t - R^\top(\boldsymbol{\mu}_w - t) = R^\top(\mathbf{x}_w - \boldsymbol{\mu}_w)$$
 
 Substituting:
 
-$$\Sigma_c = \mathbb{E}\big[R^\top (\mathbf{x}_w - \boldsymbol{\mu}_w)(\mathbf{x}_w - \boldsymbol{\mu}_w)^\top R\big] = R^\top \, \mathbb{E}\big[(\mathbf{x}_w - \boldsymbol{\mu}_w)(\mathbf{x}_w - \boldsymbol{\mu}_w)^\top\big] \, R = R^\top \Sigma_w R$$
+$$\Sigma_c = \mathbb{E}[R^\top (\mathbf{x}_w - \boldsymbol{\mu}_w)(\mathbf{x}_w - \boldsymbol{\mu}_w)^\top R] = R^\top \mathbb{E}[(\mathbf{x}_w - \boldsymbol{\mu}_w)(\mathbf{x}_w - \boldsymbol{\mu}_w)^\top] R = R^\top \Sigma_w R$$
 
 So the covariance picks up an $R^\top$ on the left and an $R$ on the right — it is "sandwiched" by the rotation. Two things to notice:
 
 - **Translation $t$ doesn't appear in $\Sigma_c$.** Covariance is translation-invariant by definition: shifting every point in space by the same vector doesn't change how spread out they are. This is why only $R$ shows up.
 - **The covariance is sandwiched, not just multiplied once.** The pattern $A \Sigma A^\top$ is general: for any linear $\mathbf{y} = A\mathbf{x}$, $\mathrm{Cov}(\mathbf{y}) = A \mathrm{Cov}(\mathbf{x}) A^\top$. It's easy to get wrong if you think of the Gaussian as just a point and apply $R^\top$ alone.
 
-Putting it together: $\mathbf{x}_c \sim \mathcal{N}(R^\top(\boldsymbol{\mu}_w - t),\; R^\top \Sigma_w R)$.
+Putting it together:
+
+$$\mathbf{x}_c \sim \mathcal{N}(R^\top(\boldsymbol{\mu}_w - t), R^\top \Sigma_w R)$$
 
 ### 1.2 3D to 2D (EWA splatting)
 
@@ -83,36 +89,45 @@ $$u = f_x \frac{x_c}{z_c} + c_x, \qquad v = f_y \frac{y_c}{z_c} + c_y$$
 
 **Projecting the covariance** is where things get interesting. The trick from Section 1.1 (rule "linear function of a Gaussian is a Gaussian") only worked because the world-to-camera transform was affine. Perspective projection is **not linear** — it has $1/z_c$ in it, so the image of a 3D Gaussian under projection is *not* a 2D Gaussian in general. We can't reuse the same rule directly. We need an approximation that lets us keep treating splats as Gaussians on the image plane.
 
-**The EWA idea: locally linearize.** Even though projection $\pi(x, y, z) = (f_x \, x/z,\; f_y \, y/z)$ is nonlinear globally, it can be approximated by its **first-order Taylor expansion** locally. For a Gaussian centered at $\boldsymbol{\mu}_c = (x_c, y_c, z_c)$ and a small displacement $\boldsymbol{\delta}$:
+**The EWA idea: locally linearize.** Even though the projection
 
-$$\pi(\boldsymbol{\mu}_c + \boldsymbol{\delta}) \approx \pi(\boldsymbol{\mu}_c) + J \, \boldsymbol{\delta}$$
+$$\pi(x, y, z) = \left( f_x \frac{x}{z}, f_y \frac{y}{z} \right)$$
+
+is nonlinear globally, it can be approximated by its **first-order Taylor expansion** locally. For a Gaussian centered at $\boldsymbol{\mu}_c = (x_c, y_c, z_c)$ and a small displacement $\boldsymbol{\delta}$:
+
+$$\pi(\boldsymbol{\mu}_c + \boldsymbol{\delta}) \approx \pi(\boldsymbol{\mu}_c) + J \boldsymbol{\delta}$$
 
 where $J$ is the Jacobian of $\pi$ — the $2 \times 3$ matrix of first partial derivatives — evaluated at $\boldsymbol{\mu}_c$. Computing each entry:
 
-- $\partial_x \big( f_x \, x/z \big) = f_x / z$
-- $\partial_y \big( f_x \, x/z \big) = 0$
-- $\partial_z \big( f_x \, x/z \big) = -f_x \, x / z^2$
-- $\partial_x \big( f_y \, y/z \big) = 0$
-- $\partial_y \big( f_y \, y/z \big) = f_y / z$
-- $\partial_z \big( f_y \, y/z \big) = -f_y \, y / z^2$
+$$
+\frac{\partial}{\partial x}\left(f_x \frac{x}{z}\right) = \frac{f_x}{z}, \quad \frac{\partial}{\partial y}\left(f_x \frac{x}{z}\right) = 0, \quad \frac{\partial}{\partial z}\left(f_x \frac{x}{z}\right) = -\frac{f_x x}{z^2}
+$$
+
+$$
+\frac{\partial}{\partial x}\left(f_y \frac{y}{z}\right) = 0, \quad \frac{\partial}{\partial y}\left(f_y \frac{y}{z}\right) = \frac{f_y}{z}, \quad \frac{\partial}{\partial z}\left(f_y \frac{y}{z}\right) = -\frac{f_y y}{z^2}
+$$
 
 Assembling, evaluated at $(x_c, y_c, z_c)$:
 
-$$J = \begin{bmatrix} f_x/z_c & 0 & -f_x \, x_c / z_c^2 \\ 0 & f_y/z_c & -f_y \, y_c / z_c^2 \end{bmatrix}$$
+$$
+J = \begin{bmatrix} f_x/z_c & 0 & -f_x x_c / z_c^2 \cr 0 & f_y/z_c & -f_y y_c / z_c^2 \end{bmatrix}
+$$
 
 **Closing the loop.** Let $\mathbf{u}_c = \pi(\mathbf{x}_c)$ be the projected 2D position of a sample $\mathbf{x}_c \sim \mathcal{N}(\boldsymbol{\mu}_c, \Sigma_c)$. Within the Taylor approximation:
 
 $$\mathbf{u}_c \approx \pi(\boldsymbol{\mu}_c) + J(\mathbf{x}_c - \boldsymbol{\mu}_c)$$
 
-Taking expectations gives $\mathbb{E}[\mathbf{u}_c] \approx \pi(\boldsymbol{\mu}_c)$ (the $J(\mathbf{x}_c - \boldsymbol{\mu}_c)$ term has zero mean), so $\boldsymbol{\mu}_{2D} = \pi(\boldsymbol{\mu}_c)$.
+Taking expectations on both sides — the linear displacement term $J(\mathbf{x}_c - \boldsymbol{\mu}_c)$ has zero mean because its inner factor does — gives the 2D mean as the exact projection of the 3D center:
 
-For the covariance, apply the definition $\mathrm{Cov}(\mathbf{u}_c) = \mathbb{E}\big[(\mathbf{u}_c - \mathbb{E}[\mathbf{u}_c])(\mathbf{u}_c - \mathbb{E}[\mathbf{u}_c])^\top\big]$. The centered version of $\mathbf{u}_c$ is:
+$$\boldsymbol{\mu}_{2D} = \mathbb{E}[\mathbf{u}_c] \approx \pi(\boldsymbol{\mu}_c)$$
+
+For the covariance, apply the definition $\mathrm{Cov}(\mathbf{u}_c) = \mathbb{E}[(\mathbf{u}_c - \mathbb{E}[\mathbf{u}_c])(\mathbf{u}_c - \mathbb{E}[\mathbf{u}_c])^\top]$. The centered version of $\mathbf{u}_c$ is:
 
 $$\mathbf{u}_c - \mathbb{E}[\mathbf{u}_c] \approx J(\mathbf{x}_c - \boldsymbol{\mu}_c)$$
 
 Substituting:
 
-$$\Sigma_{2D} = \mathbb{E}\big[J(\mathbf{x}_c - \boldsymbol{\mu}_c)(\mathbf{x}_c - \boldsymbol{\mu}_c)^\top J^\top\big] = J \, \mathbb{E}\big[(\mathbf{x}_c - \boldsymbol{\mu}_c)(\mathbf{x}_c - \boldsymbol{\mu}_c)^\top\big] \, J^\top = J \, \Sigma_c \, J^\top$$
+$$\Sigma_{2D} = \mathbb{E}[J(\mathbf{x}_c - \boldsymbol{\mu}_c)(\mathbf{x}_c - \boldsymbol{\mu}_c)^\top J^\top] = J \mathbb{E}[(\mathbf{x}_c - \boldsymbol{\mu}_c)(\mathbf{x}_c - \boldsymbol{\mu}_c)^\top] J^\top = J \Sigma_c J^\top$$
 
 Same "sandwich" pattern as in Section 1.1 — and for the same reason: the centered displacement passes through the linear part of the Taylor expansion, the expectation pulls out the constant matrices on either side, and what's left in the middle is the original covariance. The mean of the splat is $\pi(\boldsymbol{\mu}_c)$ — the exact projection of the 3D center, since a single point doesn't need any approximation.
 
@@ -124,21 +139,27 @@ The 2D mean and 2D covariance now fully characterize the screen-space splat that
 This is mostly about the spherical harmonics and applying the formula (which one can refer to `sh.py`). The key is to give the view direction, i,e, the angle between the camera and gaussian center **expressed in the world coordinate**. 
 
 ### 1.4 Mahalanobis distance and impact of gaussian on a frame
-This is simply applying the gaussian distribution function. For a pixel at $\mathbf{p} = (u, v)$ and a 2D Gaussian with center $\boldsymbol{\mu}_{2D}$ and covariance $\Sigma_{2D}$, the alpha contribution is:
+This is simply applying the gaussian distribution function. For a pixel at $\mathbf{p} = (u, v)$ and the 2D Gaussian splat from the previous section (with mean and covariance both subscripted "2D"), the alpha contribution is:
 
-$$\alpha = o \cdot \exp\!\left(-\tfrac{1}{2}(\mathbf{p} - \boldsymbol{\mu}_{2D})^\top \Sigma_{2D}^{-1} (\mathbf{p} - \boldsymbol{\mu}_{2D})\right)$$
+$$\alpha = o \cdot \exp\left(-\frac{1}{2}(\mathbf{p} - \boldsymbol{\mu}_{2D})^\top \Sigma_{2D}^{-1} (\mathbf{p} - \boldsymbol{\mu}_{2D})\right)$$
 
-where $o$ is the Gaussian's opacity (after sigmoid). For a 2×2 matrix $\Sigma_{2D} = \begin{pmatrix} a & b \\ b & c \end{pmatrix}$ this has a clean closed form that avoids a generic matrix inverse:
+where $o$ is the Gaussian's opacity (after sigmoid). Writing the 2×2 covariance as
 
-$$\alpha = o \cdot \exp\!\left(-\frac{1}{2(ac - b^2)} \left(c\,\Delta u^2 - 2 b\,\Delta u\,\Delta v + a\,\Delta v^2\right)\right)$$
+$$
+\Sigma_{2D} = \begin{pmatrix} a & b \cr b & c \end{pmatrix}
+$$
 
-with $\Delta u = u - \mu_u,\; \Delta v = v - \mu_v$.
+gives a clean closed form that avoids a generic matrix inverse:
+
+$$\alpha = o \cdot \exp\left(-\frac{1}{2(ac - b^2)} \left(c \Delta u^2 - 2 b \Delta u \Delta v + a \Delta v^2\right)\right)$$
+
+with $\Delta u = u - \mu_u$ and $\Delta v = v - \mu_v$.
 
 ### 1.5 putting all gaussian together ($\alpha$ compositing)
 Some gaussians are closer (smaller depth, i.e. $z$ axis of gaussian center inside **camera coordinate**), so they will be projected first. 
 If the projected gaussians are highly dense, it will block the gaussians behind it — exactly what we want physically. Formally, for $N$ depth-sorted Gaussians and per-pixel:
 
-$$T_i = \prod_{j<i}(1 - \alpha_j), \qquad C_{\text{pixel}} = \sum_{i=1}^{N} \alpha_i T_i c_i + T_{N+1} c_{\text{bg}}$$
+$$T_i = \prod_{j < i}(1 - \alpha_j), \qquad C_{\text{pixel}} = \sum_{i=1}^{N} \alpha_i T_i c_i + T_{N+1} c_{\text{bg}}$$
 
 $T_i$ is the **transmittance** reaching Gaussian $i$ — the fraction of light not yet blocked by Gaussians in front of it. Each Gaussian contributes its color $c_i$ weighted by both its own alpha and the transmittance that survived to reach it.
 In the end, if we didn't use up all the transmittance of a pixel (i.e. gaussians impacting this pixel have not been dense enough), we will fill it using the background color. This is similar to real life — we will see the background if the objects in between are relatively transparent.
@@ -163,7 +184,15 @@ Note that while paper mentions "creating a copy of the same size, and moving it 
 
 ### 2.3 split large gaussians
 
-In this case, the original gaussian will be deleted, and two smaller gaussians will be created. Their centers are sampled from $\mathcal{N}(\boldsymbol{\mu}_{\text{parent}}, \Sigma_{\text{parent}})$ — the parent's own distribution — so they remain in the same region but spread out a bit. Their scale is divided by $\phi = 1.6$ (in log-space: $\log s_{\text{child}} = \log s_{\text{parent}} - \log 1.6$), while rotation, opacity, and SH coefficients are inherited from the parent unchanged.
+In this case, the original gaussian is deleted, and two smaller gaussians are created. Their centers are sampled from the parent's own 3D distribution:
+
+$$\mathbf{x}_{\text{child}} \sim \mathcal{N}(\boldsymbol{\mu}_{\text{parent}}, \Sigma_{\text{parent}})$$
+
+so they remain in the same region but spread out a bit. Their scale is divided by $\phi = 1.6$, which in log-space becomes:
+
+$$\log s_{\text{child}} = \log s_{\text{parent}} - \log 1.6$$
+
+Rotation, opacity, and SH coefficients are inherited from the parent unchanged.
 
 ### 2.4 pruning
 
@@ -193,9 +222,9 @@ Indeed this only happens **during the densification phase** (`step < densify_unt
 
 ### 3.3 EWA splatting smoothing
 
-This may be more tied to the original EWA splatting paper. Simply put, we add a small constant ($h_{var} = 0.3$) to the diagonal of the 2D covariance:
+This may be more tied to the original EWA splatting paper. Simply put, we add a small constant to the diagonal of the 2D covariance:
 
-$$\Sigma_{2D}^{\text{filtered}} = \Sigma_{2D} + h_{var} I_2$$
+$$\Sigma_{2D}^{\text{filtered}} = \Sigma_{2D} + h \cdot I_2 \qquad \text{with } h = 0.3$$
 
 This guarantees every Gaussian's screen-space footprint is at least about one pixel wide. Without it, a Gaussian that projects to sub-pixel size has nowhere on the pixel grid where its alpha exceeds the contribution threshold ($1/255$), so it contributes nothing to any pixel and receives zero gradient — it gets stuck. The filter is mathematically the EWA low-pass / dilation kernel from Zwicker et al. (2002), and conceptually identical to mipmapping in classical graphics: a Nyquist-limit guard against undersampling.
 
