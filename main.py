@@ -123,8 +123,8 @@ def main(cfg: dict):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train 3DGS on a Blender scene from a YAML config.")
-    parser.add_argument("--config", default="configs/paper.yaml",
-                        help="Path to YAML config file (default: configs/paper.yaml)")
+    parser.add_argument("--config", default="configs/medium_scene.yaml",
+                        help="Path to YAML config file (default: configs/medium_scene.yaml)")
     args = parser.parse_args()
 
     with open(args.config) as f:

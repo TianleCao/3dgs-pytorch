@@ -17,7 +17,7 @@ This trades a significant amount of speed for being readable. The full pipeline 
 │   ├── train.py        # one training step (forward, loss, backward)
 │   ├── evaluate.py     # PSNR / SSIM on a held-out split
 │   └── utils.py        # quaternion math, inverse sigmoid
-├── configs/            # YAML training presets (paper / cloud_medium / colab_mini)
+├── configs/            # YAML training presets (full_scene_paper / medium_scene / mini_scene)
 ├── main.py             # training entry point (takes --config)
 ├── inference.py        # render a small test-view gallery from a checkpoint
 ├── imgs/               # rendered galleries used in this README
@@ -99,7 +99,7 @@ uv run python inference.py \
 
 ## Results
 
-Trained with `configs/cloud_medium.yaml` on an RTX 3090 (RunPod) — 400×400, N=50K initial, 15K steps, ~5 hr wall-clock. Final metrics on the `lego` test split:
+Trained with `configs/medium_scene.yaml` on an RTX 3090 (RunPod) — 400×400, N=50K initial, 15K steps, ~5 hr wall-clock. Final metrics on the `lego` test split:
 
 | Metric | Value |
 |---|---|
